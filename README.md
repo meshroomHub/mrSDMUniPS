@@ -73,6 +73,18 @@ output_directory/
     └── ...
 ``` -->
 
+## ⚠️ Work in Progress (WIP)
+
+### Known Issues
+
+1. **Intrinsics Not Updated After Cropping**: When cropping is enabled, the camera intrinsics in the output SfMData are not automatically updated to reflect the new image dimensions and principal point. This needs to be implemented to maintain proper camera calibration.
+
+2. **Output Bug**: There is currently a bug in the output generation that prevents the node from working properly. The node is under active development to resolve this issue.
+
+### TODO
+- [ ] Update camera intrinsics after cropping operations
+- [ ] Fix output generation bug
+
 ## References
 
 **Original Paper:**
