@@ -1,0 +1,7 @@
+[
+    {
+        "key": "SDM_UNIPS_CHECKPOINT_PATH",
+        "type": "path",
+        "value": "../checkpoint"
+    }
+]
