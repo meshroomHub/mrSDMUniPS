@@ -110,7 +110,7 @@ def estimate_common_bbox_from_masks(mask_paths, target_size=None):
     
     return (int(x_min), int(y_min), int(bbox_width), int(bbox_height))
 
-def update_intrinsics_after_rotation_and_crop(intrinsic, rotation_applied, crop_bbox, original_size):
+def update_intrinsics_after_rotation_and_crop(intrinsic, rotation_applied, crop_bbox):
     """
     Update camera intrinsics after rotation and cropping.
     
@@ -118,7 +118,6 @@ def update_intrinsics_after_rotation_and_crop(intrinsic, rotation_applied, crop_
         intrinsic: Camera intrinsic object
         rotation_applied: Rotation angle applied (0 or 90 degrees)
         crop_bbox: (x, y, width, height) of the crop
-        original_size: (width, height) of the original image
         
     Returns:
         Updated intrinsic parameters
@@ -130,163 +129,31 @@ def update_intrinsics_after_rotation_and_crop(intrinsic, rotation_applied, crop_
     if cam is None:
         return intrinsic  # Can't update non-pinhole models
     
-    if rotation_applied == 90:
-        # After 90-degree clockwise rotation:
-        # - Image dimensions swap: (W, H) -> (H, W)
-        # - Principal point transforms: (px, py) -> (H - py, px)
-        
-        original_width, original_height = original_size
-        
-        # Get current offset (principal point)
-        offset = cam.getOffset()
-        current_px = -numeric.getX(offset)  # Note: offset is negative of principal point
-        current_py = numeric.getY(offset)
-        
-        # Calculate new principal point after rotation
-        new_px = original_height - current_py
-        new_py = current_px
-        
-        # Set new offset (remember to negate px)
-        new_offset = numeric.Vec2(-new_px, new_py)
-        cam.setOffset(new_offset)
-    
     # Apply crop offset
     if crop_bbox:
-        crop_x, crop_y, _, _ = crop_bbox
-        
-        # Get current offset
-        offset = cam.getOffset()
-        current_px = -numeric.getX(offset)
-        current_py = numeric.getY(offset)
-        
-        # Apply crop offset
-        new_px = current_px - crop_x
-        new_py = current_py - crop_y
+        crop_x, crop_y, new_width, new_height = crop_bbox
+    
+        # Get current principal point
+        pp = cam.getPrincipalPoint()
+        pp_x = numeric.getX(pp)
+        pp_y = numeric.getY(pp)
+        logging.debug(f"Original principal point: ({pp_x}, {pp_y})")
+
+        # Adjust principal point
+        new_ppx = pp_x - crop_x
+        new_ppy = pp_y - crop_y
+        logging.debug(f"Adjusted principal point: ({new_ppx}, {new_ppy})")
+
+        # Get new offset
+        new_px = new_width / 2 - new_ppx
+        new_py = new_height / 2 - new_ppy
+        logging.debug(f"New offset: ({new_px}, {new_py})")
         
         # Set new offset
-        new_offset = numeric.Vec2(-new_px, new_py)
-        cam.setOffset(new_offset)
-    
-    return intrinsic
+        cam.setOffset(np.array([new_px, new_py]))
 
-def preprocess_images_and_sfmdata(input_sfm_path, output_sfm_path, output_images_dir, 
-                                mask_paths=None, enable_cropping=True, target_crop_size=None,
-                                logger=None):
-    """
-    Preprocess images and SfMData: ensure landscape orientation and optionally crop based on masks.
-    
-    Args:
-        input_sfm_path: Path to input SfMData file
-        output_sfm_path: Path to output SfMData file
-        output_images_dir: Directory to save processed images
-        mask_paths: List of mask file paths for bbox estimation
-        enable_cropping: Whether to enable cropping
-        target_crop_size: Optional (width, height) for crop size
-        logger: Logger instance
-    
-    Returns:
-        dict with processing results
-    """
-    if logger is None:
-        logger = logging.getLogger(__name__)
-    
-    try:
-        # Load input SfMData
-        input_sfm_data = sfmData.SfMData()
-        if not sfmDataIO.load(input_sfm_data, input_sfm_path, sfmDataIO.ALL):
-            raise RuntimeError(f"Failed to load input SfMData file: {input_sfm_path}")
+        # Set new image size
+        cam.setWidth(new_width)
+        cam.setHeight(new_height)
         
-        # Create output directory
-        Path(output_images_dir).mkdir(parents=True, exist_ok=True)
-        
-        # Estimate common bbox if cropping is enabled and masks are provided
-        common_bbox = None
-        if enable_cropping and mask_paths:
-            logger.info(f"Estimating common bbox from {len(mask_paths)} masks")
-            common_bbox = estimate_common_bbox_from_masks(mask_paths, target_crop_size)
-            if common_bbox:
-                logger.info(f"Common bbox estimated: {common_bbox}")
-            else:
-                logger.warning("Could not estimate common bbox from masks")
-        
-        # Process each view
-        views = input_sfm_data.getViews()
-        processed_count = 0
-        rotation_stats = {"rotated": 0, "unchanged": 0}
-        
-        for view_id, view in views.items():
-            image_path = view.getImage().getImagePath()
-            
-            if not os.path.exists(image_path):
-                logger.warning(f"Image not found: {image_path}")
-                continue
-            
-            # Load image
-            img = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-            if img is None:
-                logger.warning(f"Could not load image: {image_path}")
-                continue
-            
-            original_size = (img.shape[1], img.shape[0])  # (width, height)
-            
-            # Ensure landscape orientation
-            processed_img, rotation_applied = ensure_landscape_orientation(img)
-            
-            if rotation_applied > 0:
-                rotation_stats["rotated"] += 1
-                logger.info(f"Rotated image {Path(image_path).name} by {rotation_applied} degrees")
-            else:
-                rotation_stats["unchanged"] += 1
-            
-            # Apply cropping if enabled and bbox is available
-            if enable_cropping and common_bbox:
-                crop_x, crop_y, crop_w, crop_h = common_bbox
-                processed_img = processed_img[crop_y:crop_y+crop_h, crop_x:crop_x+crop_w]
-                logger.info(f"Cropped image {Path(image_path).name} to {crop_w}x{crop_h}")
-            
-            # Save processed image
-            output_image_path = Path(output_images_dir) / Path(image_path).name
-            cv2.imwrite(str(output_image_path), processed_img)
-            
-            # Update view with new image path
-            view.getImage().setImagePath(str(output_image_path))
-            
-            # Update image dimensions
-            new_height, new_width = processed_img.shape[:2]
-            view.getImage().setWidth(new_width)
-            view.getImage().setHeight(new_height)
-            
-            # Update intrinsics
-            intrinsic_id = view.getIntrinsicId()
-            if input_sfm_data.getIntrinsics().count(intrinsic_id) > 0:
-                intrinsic = input_sfm_data.getIntrinsics()[intrinsic_id]
-                updated_intrinsic = update_intrinsics_after_rotation_and_crop(
-                    intrinsic, rotation_applied, common_bbox if enable_cropping else None, original_size
-                )
-                # The intrinsic object is modified in place
-                logger.info(f"Updated intrinsics for view {view_id} (intrinsic_id: {intrinsic_id})")
-            
-            processed_count += 1
-        
-        # Save updated SfMData
-        if not sfmDataIO.save(input_sfm_data, output_sfm_path, sfmDataIO.ALL):
-            raise RuntimeError(f"Failed to save updated SfMData to: {output_sfm_path}")
-        
-        logger.info(f"Preprocessing completed: {processed_count} images processed")
-        logger.info(f"Rotation stats: {rotation_stats['rotated']} rotated, {rotation_stats['unchanged']} unchanged")
-        
-        return {
-            "success": True,
-            "processed_count": processed_count,
-            "rotation_stats": rotation_stats,
-            "common_bbox": common_bbox,
-            "output_sfm_path": output_sfm_path,
-            "output_images_dir": output_images_dir
-        }
-    
-    except Exception as e:
-        logger.error(f"Error in preprocessing: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
+    return intrinsic

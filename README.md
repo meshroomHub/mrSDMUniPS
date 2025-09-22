@@ -48,42 +48,15 @@ The SDMUniPS node accepts:
 ### Output Files
 
 The node generates:
-- **Normal Maps**: Surface normals in camera coordinate system (`<POSE_ID>_normals.exr`)
+- **Normal Maps**: Surface normals in camera coordinate system (`<POSE_ID>_normals.png`)
 - **Albedo Maps**: Base color maps (`<POSE_ID>_albedo.png`)
 - **Roughness Maps**: Surface roughness parameters (`<POSE_ID>_roughness.png`)
 - **Metallic Maps**: Metallic parameters (`<POSE_ID>_metallic.png`)
 - **SfMData files**: Updated SfMData with output image references
 
-<!-- ### Directory Structure
-
-The node automatically organizes data for SDM-UniPS processing:
-```
-output_directory/
-├── sdm_unips_data/
-│   ├── pose_0.data/
-│   │   ├── L000.jpg
-│   │   ├── L001.jpg
-│   │   └── mask.png (optional)
-│   └── pose_1.data/
-│       ├── L000.jpg
-│       └── L001.jpg
-└── results/
-    ├── pose_0_normals.exr
-    ├── pose_0_albedo.png
-    └── ...
-``` -->
-
-## ⚠️ Work in Progress (WIP)
-
-### Known Issues
-
-1. **Intrinsics Not Updated After Cropping**: When cropping is enabled, the camera intrinsics in the output SfMData are not automatically updated to reflect the new image dimensions and principal point. This needs to be implemented to maintain proper camera calibration.
-
-2. **Output Bug**: There is currently a bug in the output generation that prevents the node from working properly. The node is under active development to resolve this issue.
-
 ### TODO
-- [ ] Update camera intrinsics after cropping operations
-- [ ] Fix output generation bug
+- [x] Update camera intrinsics after cropping operations
+- [x] Fix output generation bug
 
 ## References
 
