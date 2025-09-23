@@ -1,1 +1,1 @@
-sdm_unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git#egg=meshroomMain
+sdm_unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git@meshroomMain
