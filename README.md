@@ -1,6 +1,6 @@
 # mrSDMUniPS
 
-A Meshroom node integration for [**SDM-UniPS: Scalable, Detailed, and Mask-Free Universal Photometric Stereo**](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023) (CVPR2023 Highlight).
+A Meshroom node integration for [**SDM-UniPS: Scalable, Detailed, and Mask-Free Universal Photometric Stereo**](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/tree/meshroomMain) (CVPR2023 Highlight).
 
 ## Overview
 
@@ -71,7 +71,7 @@ The node generates:
 ```
 
 **Links:**
-- [Original Repository](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023)
+- [Original Repository](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/tree/meshroomMain)
 - [Paper (ArXiv)](https://arxiv.org/abs/2303.15724)
 - [Author's Page](https://satoshi-ikehata.github.io/)
 - [Pretrained Models](https://www.dropbox.com/s/yu8h6g0zp07mumd/checkpoint.zip?dl=0)
