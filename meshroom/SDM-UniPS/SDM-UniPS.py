@@ -1,48 +1,87 @@
-__version__ = "0.1"
+__version__ = "1.0"
 
+import json
+import os
 from meshroom.core import desc
 from meshroom.core.utils import VERBOSE_LEVEL
 
+
 class SDMUniPS(desc.Node):
-    size = desc.DynamicNodeSize("inputSfmData")
-    gpu = desc.Level.INTENSIVE
-    parallelization = desc.Parallelization(blockSize=50)
+    """
+    Multi-view photometric stereo estimation using SDM-UniPS.
+
+    Reads an SfMData JSON with multi-lighting views grouped by poseId,
+    runs normal and/or BRDF estimation per pose, and outputs maps with
+    output SfMData files and a JSON referencing all results.
+    """
 
     category = "Photometric Stereo"
+    gpu = desc.Level.INTENSIVE
+    size = desc.DynamicNodeSize("inputSfm")
+
     documentation = """
-SDM-UniPS: Scalable, Detailed and Mask-free Universal Photometric Stereo Network (CVPR2023)
+    Estimate surface normals and BRDF parameters from multi-lighting
+    images using SDM-UniPS (CVPR2023).
 
-This node runs the SDM-UniPS neural network for photometric stereo reconstruction.
-It processes preprocessed photometric stereo data to estimate surface normals and BRDF parameters.
+    **Inputs:**
+    - SfMData JSON with views grouped by poseId (multi-lighting)
+    - Optional mask folder (masks named by poseId or viewId)
 
-The network can handle arbitrary lighting conditions without requiring calibrated lighting setup.
-"""
+    **Processing:**
+    - Images are loaded and preprocessed internally
+    - Normal maps and/or BRDF maps are estimated per pose
+
+    **Outputs:**
+    - Normal map PNGs per pose
+    - BRDF maps (albedo, roughness, metallic) per pose
+    - Output SfMData files referencing results
+    - JSON file mapping poseIds to normal map paths
+    """
 
     inputs = [
         desc.File(
-            name="inputSfmData",
+            name="inputSfm",
             label="Input SfMData",
-            description="Preprocessed SfMData file from PreparePSImages node.",
+            description="SfMData JSON file with multi-lighting views "
+                        "grouped by poseId.",
             value="",
         ),
         desc.File(
-            name="inputDataFolder",
-            label="Data Folder",
-            description="Preprocessed data folder from PreparePSImages node.",
+            name="maskFolder",
+            label="Mask Folder",
+            description="Folder with mask PNGs named by poseId or viewId "
+                        "(e.g. '12345.png'). Optional.",
             value="",
+        ),
+        desc.IntParam(
+            name="downscale",
+            label="Downscale Factor",
+            description="Integer downscale factor for input images "
+                        "(1 = original, 2 = half, 4 = quarter).",
+            value=1,
+            range=(1, 8, 1),
+        ),
+        desc.IntParam(
+            name="nbImages",
+            label="Number of Images",
+            description="Maximum number of lighting images per pose to use.",
+            value=10,
+            range=(3, 50, 1),
         ),
         desc.ChoiceParam(
             name="target",
             label="Target Output",
-            description="What to estimate: normal maps only, BRDF only, or both.",
+            description="What to estimate: normal maps only, BRDF only, "
+                        "or both.",
             values=["normal", "brdf", "normal_and_brdf"],
             value="normal_and_brdf",
         ),
-        desc.File(
-            name="checkpoint",
-            label="Checkpoint Path",
-            description="Path to the model checkpoint file.",
-            value="${SDM_UNIPS_CHECKPOINT_PATH}",
+        desc.BoolParam(
+            name="useGpu",
+            label="Use GPU",
+            description="Use GPU for inference.",
+            value=True,
+            invalidate=False,
         ),
         desc.IntParam(
             name="maxImageRes",
@@ -53,31 +92,10 @@ The network can handle arbitrary lighting conditions without requiring calibrate
             advanced=True,
         ),
         desc.IntParam(
-            name="maxImageNum",
-            label="Max Image Number",
-            description="Maximum number of images to process per pose.",
-            value=10,
-            range=(3, 50, 1),
-            advanced=True,
-        ),
-        desc.StringParam(
-            name="viewExt",
-            label="View Extension",
-            description="Extension of the view folders (e.g., .data, .png). See SDM-UniPS documentation for details.",
-            value=".data",
-            advanced=True,
-        ),
-        desc.StringParam(
-            name="imagePrefix",
-            label="Image Prefix",
-            description="Prefix pattern for test images (e.g., L* for images starting with L). See SDM-UniPS documentation for details.",
-            value="L*",
-            advanced=True,
-        ),
-        desc.IntParam(
             name="canonicalResolution",
             label="Canonical Resolution",
-            description="Canonical resolution. See SDM-UniPS documentation for details.",
+            description="Canonical resolution for the network. "
+                        "See SDM-UniPS documentation for details.",
             value=256,
             range=(64, 1024, 1),
             advanced=True,
@@ -85,9 +103,10 @@ The network can handle arbitrary lighting conditions without requiring calibrate
         desc.IntParam(
             name="pixelSamples",
             label="Pixel Samples",
-            description="Number of pixel samples. See SDM-UniPS documentation for details.",
+            description="Number of pixel samples for processing. "
+                        "See SDM-UniPS documentation for details.",
             value=10000,
-            range=(1000, 50000, 1000),
+            range=(1000, 50000, 1),
             advanced=True,
         ),
         desc.BoolParam(
@@ -95,305 +114,370 @@ The network can handle arbitrary lighting conditions without requiring calibrate
             label="Scalable Mode",
             description="Enable scalable mode for large images.",
             value=False,
+            advanced=True,
+        ),
+        desc.File(
+            name="sdmUniPsPath",
+            label="SDM-UniPS Path",
+            description="Path to SDM-UniPS code directory. "
+                        "Set via config.json key SDM_UNIPS_PATH.",
+            value="${SDM_UNIPS_PATH}",
+            advanced=True,
+        ),
+        desc.File(
+            name="checkpoint",
+            label="Checkpoint Path",
+            description="Path to the model checkpoint directory. "
+                        "Set via config.json key SDM_UNIPS_CHECKPOINT_PATH.",
+            value="${SDM_UNIPS_CHECKPOINT_PATH}",
+            advanced=True,
         ),
         desc.ChoiceParam(
             name="verboseLevel",
             label="Verbose Level",
-            description="Verbosity level (fatal, error, warning, info, debug, trace).",
+            description="Verbosity level for logging.",
             values=VERBOSE_LEVEL,
             value="info",
+            exclusive=True,
         ),
     ]
 
     outputs = [
         desc.File(
-            name="outputPath",
+            name="outputFolder",
             label="Output Folder",
-            description="Path to the output folder.",
+            description="Folder containing output maps.",
             value="{nodeCacheFolder}",
         ),
         desc.File(
             name="outputSfmDataNormal",
             label="SfMData Normal",
-            description="Output SfMData file containing the normal maps information.",
+            description="Output SfMData file referencing normal maps.",
             value="{nodeCacheFolder}/normalMaps.sfm",
-            group="",  # remove from command line
+            group="",
         ),
         desc.File(
             name="outputSfmDataAlbedo",
             label="SfMData Albedo",
-            description="Output SfMData file containing the albedo information.",
+            description="Output SfMData file referencing albedo maps.",
             value="{nodeCacheFolder}/albedoMaps.sfm",
-            group="",  # remove from command line
+            group="",
         ),
         desc.File(
             name="outputSfmDataRoughness",
             label="SfMData Roughness",
-            description="Output SfMData file containing the roughness information.",
+            description="Output SfMData file referencing roughness maps.",
             value="{nodeCacheFolder}/roughnessMaps.sfm",
-            group="",  # remove from command line
+            group="",
         ),
         desc.File(
             name="outputSfmDataMetallic",
             label="SfMData Metallic",
-            description="Output SfMData file containing the metallic information.",
+            description="Output SfMData file referencing metallic maps.",
             value="{nodeCacheFolder}/metallicMaps.sfm",
-            group="",  # remove from command line
-        ),
-        desc.File(
-            name="normals",
-            label="Normal Maps Camera",
-            description="Generated normal maps in the camera coordinate system.",
-            semantic="image",
-            value="{nodeCacheFolder}/<POSE_ID>_normals.png",
             group="",
         ),
         desc.File(
-            name="albedo",
-            label="Albedo Maps",
-            description="Generated albedo maps.",
-            semantic="image",
-            value="{nodeCacheFolder}/<POSE_ID>_albedo.png",
-            group="",  # do not export on the command line
-        ),
-        desc.File(
-            name="roughness",
-            label="Roughness Maps",
-            description="Generated roughness maps (BRDF parameter).",
-            semantic="image",
-            value="{nodeCacheFolder}/<POSE_ID>_roughness.png",
-            group="",  # do not export on the command line
-        ),
-        desc.File(
-            name="metallic",
-            label="Metallic Maps",
-            description="Generated metallic maps (BRDF parameter).",
-            semantic="image",
-            value="{nodeCacheFolder}/<POSE_ID>_metallic.png",
-            group="",  # do not export on the command line
+            name="outputMaskFolder",
+            label="Mask Folder",
+            description="Folder with masks extracted from alpha channels.",
+            value="{nodeCacheFolder}/masks",
+            group="",
         ),
     ]
 
-    def createOutputSfmData(self, chunk):
-        """
-        Create SfMData files for the outputs, using pyalicevision library.
-        """
-        try:
-            from pyalicevision import sfmData, sfmDataIO
-            
-            # Load input SfMData using pyalicevision
-            input_sfm_data = sfmData.SfMData()
-            if not sfmDataIO.load(input_sfm_data, chunk.node.inputSfmData.value, sfmDataIO.ALL):
-                raise RuntimeError(f"Failed to load input SfMData file: {chunk.node.inputSfmData.value}")
-
-            # Create Albedo SfMData (copy of input)
-            albedo_sfm_data = input_sfm_data
-            view_ids_to_remove = set()
-            
-            # Filter views: keep only pose representative views (viewId == poseId)
-            views = albedo_sfm_data.getViews()
-            for view_id, view in views.items():
-                pose_id = view.getPoseId()
-                
-                if view_id == pose_id:
-                    # Set albedo image path for this pose
-                    albedo_path = f"{chunk.node.outputPath.value}/{pose_id}_albedo.png"
-                    view.getImage().setImagePath(albedo_path)
+    @staticmethod
+    def _scale_intrinsics(sfm, downscale):
+        """Scale intrinsics and view dimensions to match downscaled images."""
+        if downscale <= 1:
+            return
+        f = float(downscale)
+        for intr in sfm.get("intrinsics", []):
+            for key in ("width", "height"):
+                if key in intr:
+                    intr[key] = str(int(int(float(str(intr[key]))) / f))
+            if "principalPoint" in intr:
+                pp = intr["principalPoint"]
+                intr["principalPoint"] = [
+                    str(float(str(pp[0])) / f),
+                    str(float(str(pp[1])) / f),
+                ]
+            if "pxFocalLength" in intr:
+                pfl = intr["pxFocalLength"]
+                if isinstance(pfl, list):
+                    intr["pxFocalLength"] = [pfl[0] / f, pfl[1] / f]
                 else:
-                    view_ids_to_remove.add(view_id)
-            
-            # Remove non-representative views
-            for view_id in view_ids_to_remove:
-                albedo_sfm_data.getViews().erase(view_id)
-            
-            # Create Normal SfMData
-            normal_sfm_data = albedo_sfm_data
-            views = normal_sfm_data.getViews()
-            for view_id, view in views.items():
-                pose_id = view.getPoseId()
-                normal_path = f"{chunk.node.outputPath.value}/{pose_id}_normals.png"
-                view.getImage().setImagePath(normal_path)
-            
-            if not sfmDataIO.save(normal_sfm_data,
-                                    f"{chunk.node.outputPath.value}/normalMaps.sfm",
-                                    sfmDataIO.ALL):
-                chunk.logger.warning("Failed to save normal SfMData")
-            else:
-                chunk.logger.info(f"Normal SfMData saved to {chunk.node.outputPath.value}/normalMaps.sfm")
+                    intr["pxFocalLength"] = float(pfl) / f
+        for view in sfm.get("views", []):
+            for key in ("width", "height"):
+                if key in view:
+                    view[key] = str(int(int(float(str(view[key]))) / f))
 
-            # Create Albedo, Roughness and Metallic SfMData
-            if chunk.node.target.value in ["brdf", "normal_and_brdf"]:
-                
-                # Save roughness and metallic maps as well
-                for param in ["albedo", "roughness", "metallic"]:
-                    param_sfm_data = albedo_sfm_data
-                    views = param_sfm_data.getViews()
-                    for view_id, view in views.items():
-                        pose_id = view.getPoseId()
-                        param_path = f"{chunk.node.outputPath.value}/{pose_id}_{param}.png"
-                        view.getImage().setImagePath(param_path)
-                    
-                    if not sfmDataIO.save(param_sfm_data,
-                                        f"{chunk.node.outputPath.value}/{param}Maps.sfm",
-                                        sfmDataIO.ALL):
-                        chunk.logger.warning(f"Failed to save {param} SfMData")
-                    else:
-                        chunk.logger.info(f"{param.capitalize()} SfMData saved to {chunk.node.outputPath.value}/{param}Maps.sfm")
-            
-        except Exception as e:
-            chunk.logger.error(f"Error creating output SfMData files: {e}")
-            raise
+    def _create_output_sfm(self, sfm_data, output_folder,
+                           map_type, suffix, logger, downscale=1):
+        """Create an output SfMData JSON that references generated map files.
 
-    def moveResultsToMeshroomOutput(self, chunk):
+        Keeps one representative view per poseId (viewId == poseId),
+        replaces image paths, and scales intrinsics for downscale.
         """
-        Move SDM-UniPS results from its output location to Meshroom expected locations.
-        """
-        try:
-            import shutil
-            from pathlib import Path
-            from pyalicevision import sfmData, sfmDataIO
+        import copy
+        sfm = copy.deepcopy(sfm_data)
 
-            # Load input SfMData to get pose information
-            input_sfm_data = sfmData.SfMData()
-            if not sfmDataIO.load(input_sfm_data, chunk.node.inputSfmData.value, sfmDataIO.ALL):
-                raise RuntimeError(f"Failed to load input SfMData file: {chunk.node.inputSfmData.value}")
+        views = sfm.get("views", [])
 
-            # Get unique pose IDs
-            pose_ids = set()
-            views = input_sfm_data.getViews()
-            for view_id, view in views.items():
-                if view_id == view.getPoseId():  # Only representative views
-                    pose_ids.add(view.getPoseId())
+        representative_views = []
+        for view in views:
+            view_id = str(view.get("viewId", ""))
+            pose_id = str(view.get("poseId", ""))
+            if view_id == pose_id:
+                map_path = os.path.join(output_folder,
+                                        "{}{}".format(pose_id, suffix))
+                view["path"] = map_path
+                representative_views.append(view)
 
-            chunk.logger.info(f"Moving results for {len(pose_ids)} poses from {chunk.node.tempFolder}")
+        sfm["views"] = representative_views
+        self._scale_intrinsics(sfm, downscale)
 
-            # Move results for each pose
-            for pose_id in pose_ids:
-                pose_results_dir = Path(chunk.node.tempFolder) / "results" / f"pose_{pose_id}{chunk.node.viewExt.value}"
-                
-                if not pose_results_dir.exists():
-                    chunk.logger.warning(f"Results directory not found for pose {pose_id}: {pose_results_dir}")
-                    continue
+        output_path = os.path.join(output_folder,
+                                   "{}.sfm".format(map_type))
+        with open(output_path, "w") as f:
+            json.dump(sfm, f, indent=4)
 
-                chunk.logger.debug(f"Processing results for pose {pose_id}")
-
-                # Move each type of result file
-                for result_file in pose_results_dir.glob("*"):
-                    if not result_file.is_file():
-                        continue
-
-                    filename = result_file.name.lower()
-                    final_name = None
-
-                    # Determine output filename based on content
-                    if "normal" in filename:
-                        if result_file.suffix == ".exr":
-                            final_name = f"{pose_id}_normals.exr"
-                        else:
-                            final_name = f"{pose_id}_normals.png"
-                    elif "albedo" in filename or "basecolor" in filename:
-                        final_name = f"{pose_id}_albedo.png"
-                    elif "roughness" in filename:
-                        final_name = f"{pose_id}_roughness.png"
-                    elif "metallic" in filename:
-                        final_name = f"{pose_id}_metallic.png"
-                    else:
-                        chunk.logger.debug(f"Skipping unknown result file: {result_file.name}")
-                        continue
-
-                    if final_name:
-                        dst_path = Path(chunk.node.outputPath.value) / final_name
-                        shutil.move(str(result_file), str(dst_path))
-                        chunk.logger.debug(f"Moved {result_file.name} -> {final_name}")
-
-        except Exception as e:
-            chunk.logger.error(f"Error moving SDM-UniPS results: {e}")
-            raise
-
+        logger.info("Saved {} to {}".format(map_type, output_path))
+        return output_path
 
     def processChunk(self, chunk):
-        """
-        Process the SDM-UniPS photometric stereo reconstruction.
-        """
-        from pathlib import Path
-        from sdm_unips.api import SDMUniPS_API
-        import torch
-
         try:
             chunk.logManager.start(chunk.node.verboseLevel.value)
 
-            if not chunk.node.inputSfmData.value:
-                raise RuntimeError("No input SfMData file provided")
-            
-            if not chunk.node.inputDataFolder.value:
-                raise RuntimeError("No input data folder provided")
-            
-            # Use the preprocessed data folder directly
-            data_dir = Path(chunk.node.inputDataFolder.value)
-            
-            if not data_dir.exists():
-                raise RuntimeError(f"Input data folder does not exist: {data_dir}")
-            
-            # Temp output path for SDM-UniPS
-            chunk.node.tempFolder = Path(chunk.node.outputPath.value) / "meshroom_sdm_unips"
-            
-            chunk.logger.info(f"Processing preprocessed data from: {data_dir}")
+            # Validate inputs
+            input_sfm = chunk.node.inputSfm.value
+            if not input_sfm:
+                raise RuntimeError("inputSfm is required but empty.")
+            if not os.path.exists(input_sfm):
+                raise RuntimeError(
+                    "Input SfM file not found: {}".format(input_sfm))
 
-            chunk.logger.debug(f"Input SfMData: {chunk.node.inputSfmData.value}")
-            chunk.logger.debug(f"Input Data Folder: {data_dir}")
-            chunk.logger.debug(f"Temp Output Path: {chunk.node.tempFolder}")
-            chunk.logger.debug(f"Checkpoint Path: {chunk.node.checkpoint.evalValue}")
-            chunk.logger.debug(f"Target Output: {chunk.node.target.value}")
-            chunk.logger.debug(f"Max Image Resolution: {chunk.node.maxImageRes.value}")
-            chunk.logger.debug(f"Max Image Number: {chunk.node.maxImageNum.value}")
-            chunk.logger.debug(f"View Extension: {chunk.node.viewExt.value}")
-            chunk.logger.debug(f"Image Prefix: {chunk.node.imagePrefix.value}")
-            chunk.logger.debug(f"Canonical Resolution: {chunk.node.canonicalResolution.value}")
-            chunk.logger.debug(f"Pixel Samples: {chunk.node.pixelSamples.value}")
-            chunk.logger.debug(f"Scalable Mode: {chunk.node.scalable.value}")
-            chunk.logger.debug(f"Verbose Level: {chunk.node.verboseLevel.value}")
+            mask_folder = chunk.node.maskFolder.value or ""
+            if mask_folder and not os.path.isdir(mask_folder):
+                chunk.logger.warning(
+                    "Mask folder not found, continuing without "
+                    "masks: {}".format(mask_folder))
+                mask_folder = ""
 
-            # Initialize SDM-UniPS API
-            sdm_api = SDMUniPS_API(
-                checkpoint_path=chunk.node.checkpoint.evalValue,
-                target=chunk.node.target.value,
-                canonical_resolution=chunk.node.canonicalResolution.value,
-                pixel_samples=chunk.node.pixelSamples.value,
-                scalable=chunk.node.scalable.value,
-                session_name=chunk.node.tempFolder,
-            )
+            # Resolve SDM-UniPS path
+            sdm_path = chunk.node.sdmUniPsPath.evalValue
+            if not sdm_path or not os.path.isdir(sdm_path):
+                raise RuntimeError(
+                    "SDM_UNIPS_PATH is empty or not a valid directory. "
+                    "Set it in config.json. Got: '{}'".format(sdm_path))
 
-            # Process the dataset
-            chunk.logger.info("Starting SDM-UniPS processing...")
-            result = sdm_api.process_dataset(
-                test_dir=data_dir,
-                max_image_res=chunk.node.maxImageRes.value,
-                max_image_num=chunk.node.maxImageNum.value,
-                test_ext=chunk.node.viewExt.value,
-                test_prefix=chunk.node.imagePrefix.value,
-                mask_margin=8  # Default mask margin
-            )
+            # Import all SDM-UniPS modules upfront, then restore sys.path
+            import sys
+            original_path = sys.path[:]
+            sys.path.insert(0, sdm_path)
+            try:
+                from inference_sfm import (
+                    load_sfm, group_views_by_pose,
+                    find_mask_for_pose, load_images_for_pose,
+                    preprocess_for_pose, load_model,
+                    infer_pose,
+                    save_normal_16bit, save_color_16bit,
+                    save_gray_16bit,
+                )
+                # Pre-import sdm_unips submodules so they are cached
+                # in sys.modules (needed by load_model / infer_pose)
+                import sdm_unips.modules.model.model
+                import sdm_unips.modules.model.model_utils
+                import sdm_unips.modules.model.decompose_tensors
+            except ImportError as e:
+                raise RuntimeError(
+                    "Failed to import from SDM-UniPS at {}: {}".format(
+                        sdm_path, e))
+            finally:
+                sys.path[:] = original_path
 
-            if result['success']:
-                chunk.logger.info(f"SDM-UniPS processing completed successfully in {result['elapsed_time']:.2f} seconds")
-                chunk.logger.info(f"Processed {result['num_objects']} objects")
-                
-                # Move results from SDM-UniPS output location to Meshroom expected locations
-                self.moveResultsToMeshroomOutput(chunk)
-                
-            else:
-                raise RuntimeError("SDM-UniPS processing failed")
+            # Device selection
+            import torch
+            import numpy as np
+            use_gpu = chunk.node.useGpu.value
+            use_cuda = use_gpu and torch.cuda.is_available()
+            if use_gpu and not use_cuda:
+                chunk.logger.warning(
+                    "CUDA not available, falling back to CPU")
+            device = torch.device(
+                "cuda" if use_cuda else "cpu")
 
-            # Post-process outputs to create SfMData files
-            self.createOutputSfmData(chunk)
+            # Output folder
+            output_folder = chunk.node.outputFolder.value
+            os.makedirs(output_folder, exist_ok=True)
+
+            # Resolve checkpoint path
+            checkpoint_path = chunk.node.checkpoint.evalValue
+            if not checkpoint_path:
+                chunk.logger.warning(
+                    "SDM_UNIPS_CHECKPOINT_PATH is empty.")
+
+            # Parameters
+            target = chunk.node.target.value
+            downscale = chunk.node.downscale.value
+            nb_img = chunk.node.nbImages.value
+            max_image_res = chunk.node.maxImageRes.value
+            canonical_res = chunk.node.canonicalResolution.value
+            pixel_samples = chunk.node.pixelSamples.value
+            scalable = chunk.node.scalable.value
+            mask_output_folder = chunk.node.outputMaskFolder.value
+
+            chunk.logger.info("Starting SDM-UniPS inference...")
+            chunk.logger.info("  Input SfM: {}".format(input_sfm))
+            chunk.logger.info("  Masks: {}".format(
+                mask_folder or "(none)"))
+            chunk.logger.info("  Downscale: {}".format(downscale))
+            chunk.logger.info("  Target: {}".format(target))
+            chunk.logger.info("  GPU: {}".format(use_cuda))
+            chunk.logger.info("  Checkpoint: {}".format(
+                checkpoint_path or "(default)"))
+
+            # Load SfM data
+            sfm_data = load_sfm(input_sfm)
+            pose_groups = group_views_by_pose(sfm_data)
+            chunk.logger.info("Loaded {} views, {} poses".format(
+                len(sfm_data.get("views", [])), len(pose_groups)))
+
+            # Load model
+            chunk.logger.info("Loading SDM-UniPS model on {}...".format(
+                device))
+            net_nml, net_brdf = load_model(
+                checkpoint_path, target, pixel_samples, device)
+            chunk.logger.info("Model loaded")
+
+            # Process each pose
+            import time
+            results = []
+            total_start = time.time()
+            num_poses = len(pose_groups)
+
+            for i, (pose_id, views) in enumerate(
+                    pose_groups.items()):
+                chunk.logger.info(
+                    "=== Pose {} ({}/{}, {} views) ===".format(
+                        pose_id, i + 1, num_poses, len(views)))
+
+                try:
+                    # Load images
+                    images = load_images_for_pose(
+                        views, nb_img, downscale)
+
+                    # Load mask
+                    view_ids = [str(v["viewId"]) for v in views]
+                    mask = find_mask_for_pose(
+                        pose_id, mask_folder if mask_folder else None,
+                        view_ids, views=views)
+
+                    # Save extracted mask if needed
+                    if (mask is not None and mask_output_folder
+                            and not mask_folder):
+                        os.makedirs(mask_output_folder, exist_ok=True)
+                        import cv2
+                        mask_path = os.path.join(
+                            mask_output_folder,
+                            "{}.png".format(pose_id))
+                        cv2.imwrite(mask_path,
+                                    np.uint8(mask * 255))
+                        chunk.logger.info(
+                            "Saved mask to {}".format(mask_path))
+
+                    # Preprocess
+                    I, mask_out, roi = preprocess_for_pose(
+                        images, mask,
+                        max_image_res=max_image_res)
+
+                    # Inference
+                    outputs = infer_pose(
+                        I, mask_out, roi,
+                        net_nml, net_brdf, target, device,
+                        canonical_resolution=canonical_res,
+                        pixel_samples=pixel_samples,
+                        scalable=scalable)
+
+                    # Save outputs
+                    if outputs.get("normal") is not None:
+                        nml_path = os.path.join(
+                            output_folder,
+                            "{}_normals.png".format(pose_id))
+                        save_normal_16bit(
+                            outputs["normal"], nml_path)
+
+                    if outputs.get("albedo") is not None:
+                        save_color_16bit(
+                            outputs["albedo"],
+                            os.path.join(output_folder,
+                                         "{}_albedo.png".format(
+                                             pose_id)))
+
+                    if outputs.get("roughness") is not None:
+                        save_gray_16bit(
+                            outputs["roughness"],
+                            os.path.join(output_folder,
+                                         "{}_roughness.png".format(
+                                             pose_id)))
+
+                    if outputs.get("metallic") is not None:
+                        save_gray_16bit(
+                            outputs["metallic"],
+                            os.path.join(output_folder,
+                                         "{}_metallic.png".format(
+                                             pose_id)))
+
+                    results.append({
+                        "poseId": pose_id,
+                        "viewId": str(views[0].get("viewId")),
+                        "nbImages": len(images),
+                    })
+
+                    chunk.logger.info(
+                        "Pose {} done".format(pose_id))
+
+                except Exception as e:
+                    chunk.logger.warning(
+                        "Failed on pose {}: {}".format(pose_id, e))
+                    import traceback
+                    chunk.logger.warning(traceback.format_exc())
+                    continue
+
+            total_time = time.time() - total_start
+            chunk.logger.info(
+                "All poses processed in {:.1f}s".format(total_time))
+
+            # Create output SfMData files
+            if target in ("normal", "normal_and_brdf"):
+                self._create_output_sfm(
+                    sfm_data, output_folder,
+                    "normalMaps", "_normals.png", chunk.logger,
+                    downscale=downscale)
+
+            if target in ("brdf", "normal_and_brdf"):
+                self._create_output_sfm(
+                    sfm_data, output_folder,
+                    "albedoMaps", "_albedo.png", chunk.logger,
+                    downscale=downscale)
+                self._create_output_sfm(
+                    sfm_data, output_folder,
+                    "roughnessMaps", "_roughness.png",
+                    chunk.logger, downscale=downscale)
+                self._create_output_sfm(
+                    sfm_data, output_folder,
+                    "metallicMaps", "_metallic.png",
+                    chunk.logger, downscale=downscale)
 
         finally:
-            if 'sdm_api' in locals():
-                del sdm_api
-            torch.cuda.empty_cache()
-
-            # Remove temporary SDM-UniPS output directory
-            import shutil
-            shutil.rmtree(Path("meshroom_sdm_unips"), ignore_errors=True)
-
+            # GPU cleanup
+            try:
+                import gc
+                import torch as _torch
+                gc.collect()
+                if _torch.cuda.is_available():
+                    _torch.cuda.empty_cache()
+            except Exception:
+                pass
             chunk.logManager.end()

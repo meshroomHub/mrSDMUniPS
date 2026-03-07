@@ -1,5 +1,10 @@
 [
     {
+        "key": "SDM_UNIPS_PATH",
+        "type": "path",
+        "value": "/home/bbrument/dev/SDM-UniPS-CVPR2023"
+    },
+    {
         "key": "SDM_UNIPS_CHECKPOINT_PATH",
         "type": "path",
         "value": "../checkpoint"
