@@ -325,9 +325,20 @@ class SDMUniPS(desc.Node):
 
             # Resolve checkpoint path
             checkpoint_path = chunk.node.checkpoint.evalValue
-            if not checkpoint_path:
-                chunk.logger.warning(
-                    "SDM_UNIPS_CHECKPOINT_PATH is empty.")
+            if not checkpoint_path or not os.path.isdir(checkpoint_path):
+                # Fallback: look in plugin directory
+                plugin_ckpt = os.path.join(
+                    os.path.dirname(__file__), '..', '..', 'checkpoint')
+                plugin_ckpt = os.path.abspath(plugin_ckpt)
+                if os.path.isdir(plugin_ckpt):
+                    checkpoint_path = plugin_ckpt
+                    chunk.logger.info(
+                        "Using plugin checkpoint: {}".format(checkpoint_path))
+                else:
+                    raise RuntimeError(
+                        "Checkpoint directory not found. "
+                        "Run download_weights.sh or set "
+                        "SDM_UNIPS_CHECKPOINT_PATH in config.json.")
 
             # Parameters
             target = chunk.node.target.value

@@ -1,19 +1,61 @@
 # mrSDMUniPS
 
-Meshroom plugin for [SDM-UniPS](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/tree/meshroomMain) (CVPR2023) -- universal photometric stereo for surface normal and BRDF estimation.
+Meshroom plugin for [SDM-UniPS](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/tree/meshroom) (CVPR2023) -- universal photometric stereo for surface normal and BRDF estimation.
 
-## Setup
+## Quick Start
 
-### config.json
+> **Prerequisite:** a working [Meshroom](https://github.com/alicevision/Meshroom) installation (2025+).
 
-The plugin requires two paths configured in `meshroom/config.json`:
+### 1. Clone the plugin
 
-- **SDM_UNIPS_PATH** -- path to the SDM-UniPS source directory (must contain `inference_sfm.py`)
-- **SDM_UNIPS_CHECKPOINT_PATH** -- path to the pretrained checkpoint directory (defaults to `../checkpoint`)
+```bash
+cd /path/to/your/plugins
+git clone https://github.com/meshroomHub/mrSDMUniPS.git
+cd mrSDMUniPS
+```
 
-### Checkpoints
+### 2. Set up the virtual environment
 
-Download pretrained models from [Dropbox](https://www.dropbox.com/s/yu8h6g0zp07mumd/checkpoint.zip?dl=0) and extract them to the checkpoint directory.
+Meshroom looks for a folder named **`venv`** at the plugin root.
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+
+pip install --upgrade pip
+pip install torch torchvision
+pip install -r requirements.txt
+
+deactivate
+```
+
+This installs SDM-UniPS and all its dependencies automatically via pip.
+
+### 3. Download pretrained weights
+
+```bash
+bash download_weights.sh
+```
+
+This downloads the pretrained checkpoints (~480 MB) from Dropbox into `checkpoint/`:
+
+```
+checkpoint/
+├── normal/
+│   └── nml.pytmodel
+└── brdf/
+    └── brdf.pytmodel
+```
+
+The plugin auto-detects this directory. No config.json needed.
+
+### 4. Register the plugin in Meshroom
+
+```bash
+export MESHROOM_PLUGINS_PATH=/path/to/your/plugins/mrSDMUniPS:$MESHROOM_PLUGINS_PATH
+```
+
+Launch Meshroom: the **SDMUniPS** node appears under **Photometric Stereo**.
 
 ## Usage
 
@@ -29,6 +71,21 @@ Download pretrained models from [Dropbox](https://www.dropbox.com/s/yu8h6g0zp07m
 - **Roughness maps** -- surface roughness per pose (`<poseId>_roughness.png`)
 - **Metallic maps** -- metallic parameter per pose (`<poseId>_metallic.png`)
 - **Output SfMData files** -- `normalMaps.sfm`, `albedoMaps.sfm`, `roughnessMaps.sfm`, `metallicMaps.sfm`
+
+## Advanced: Developer Setup
+
+If you prefer to work from a local SDM-UniPS clone instead of pip install:
+
+1. Clone the repo: `git clone -b meshroom https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git`
+2. Edit `meshroom/config.json`:
+   ```json
+   [
+       {"key": "SDM_UNIPS_PATH", "type": "path", "value": "/path/to/SDM-UniPS-CVPR2023"},
+       {"key": "SDM_UNIPS_CHECKPOINT_PATH", "type": "path", "value": "/path/to/SDM-UniPS-CVPR2023/checkpoint"}
+   ]
+   ```
+
+The node tries pip imports first, then falls back to the config path.
 
 ## References
 
