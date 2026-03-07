@@ -272,10 +272,8 @@ class SDMUniPS(desc.Node):
                     "SDM_UNIPS_PATH is empty or not a valid directory. "
                     "Set it in config.json. Got: '{}'".format(sdm_path))
 
-            # Import all SDM-UniPS modules upfront, then restore sys.path
+            # Import SDM-UniPS modules (pip install or sys.path fallback)
             import sys
-            original_path = sys.path[:]
-            sys.path.insert(0, sdm_path)
             try:
                 from inference_sfm import (
                     load_sfm, group_views_by_pose,
@@ -285,17 +283,30 @@ class SDMUniPS(desc.Node):
                     save_normal_16bit, save_color_16bit,
                     save_gray_16bit,
                 )
-                # Pre-import sdm_unips submodules so they are cached
-                # in sys.modules (needed by load_model / infer_pose)
                 import sdm_unips.modules.model.model
                 import sdm_unips.modules.model.model_utils
                 import sdm_unips.modules.model.decompose_tensors
-            except ImportError as e:
-                raise RuntimeError(
-                    "Failed to import from SDM-UniPS at {}: {}".format(
-                        sdm_path, e))
-            finally:
-                sys.path[:] = original_path
+            except ImportError:
+                original_path = sys.path[:]
+                sys.path.insert(0, sdm_path)
+                try:
+                    from inference_sfm import (
+                        load_sfm, group_views_by_pose,
+                        find_mask_for_pose, load_images_for_pose,
+                        preprocess_for_pose, load_model,
+                        infer_pose,
+                        save_normal_16bit, save_color_16bit,
+                        save_gray_16bit,
+                    )
+                    import sdm_unips.modules.model.model
+                    import sdm_unips.modules.model.model_utils
+                    import sdm_unips.modules.model.decompose_tensors
+                except ImportError as e:
+                    raise RuntimeError(
+                        "Failed to import from SDM-UniPS at {}: {}".format(
+                            sdm_path, e))
+                finally:
+                    sys.path[:] = original_path
 
             # Device selection
             import torch
