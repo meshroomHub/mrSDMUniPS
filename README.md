@@ -29,7 +29,6 @@ Download pretrained models from [Dropbox](https://www.dropbox.com/s/yu8h6g0zp07m
 - **Roughness maps** -- surface roughness per pose (`<poseId>_roughness.png`)
 - **Metallic maps** -- metallic parameter per pose (`<poseId>_metallic.png`)
 - **Output SfMData files** -- `normalMaps.sfm`, `albedoMaps.sfm`, `roughnessMaps.sfm`, `metallicMaps.sfm`
-- **normals.json** -- JSON mapping poseIds to normal map paths
 
 ## References
 
