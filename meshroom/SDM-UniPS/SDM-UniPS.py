@@ -116,6 +116,15 @@ class SDMUniPS(desc.Node):
             value=False,
             advanced=True,
         ),
+        desc.ChoiceParam(
+            name="outputFormat",
+            label="Output Format",
+            description="Output image format: png16 (16-bit PNG) or "
+                        "exr (float32 EXR for true HDR/float normals).",
+            values=["png16", "exr"],
+            value="png16",
+            exclusive=True,
+        ),
         desc.File(
             name="sdmUniPsPath",
             label="SDM-UniPS Path",
@@ -182,7 +191,8 @@ class SDMUniPS(desc.Node):
             label="Normal Maps",
             description="Normal map images.",
             semantic="image",
-            value="{nodeCacheFolder}/<VIEW_ID>_normals.png",
+            value=lambda attr: "{nodeCacheFolder}/<VIEW_ID>_normals." + (
+                "exr" if attr.node.outputFormat.value == "exr" else "png"),
             group="",
         ),
         desc.File(
@@ -190,7 +200,8 @@ class SDMUniPS(desc.Node):
             label="Albedo Maps",
             description="Albedo map images.",
             semantic="image",
-            value="{nodeCacheFolder}/<VIEW_ID>_albedo.png",
+            value=lambda attr: "{nodeCacheFolder}/<VIEW_ID>_albedo." + (
+                "exr" if attr.node.outputFormat.value == "exr" else "png"),
             group="",
         ),
         desc.File(
@@ -198,7 +209,8 @@ class SDMUniPS(desc.Node):
             label="Roughness Maps",
             description="Roughness map images.",
             semantic="image",
-            value="{nodeCacheFolder}/<VIEW_ID>_roughness.png",
+            value=lambda attr: "{nodeCacheFolder}/<VIEW_ID>_roughness." + (
+                "exr" if attr.node.outputFormat.value == "exr" else "png"),
             group="",
         ),
         desc.File(
@@ -206,7 +218,8 @@ class SDMUniPS(desc.Node):
             label="Metallic Maps",
             description="Metallic map images.",
             semantic="image",
-            value="{nodeCacheFolder}/<VIEW_ID>_metallic.png",
+            value=lambda attr: "{nodeCacheFolder}/<VIEW_ID>_metallic." + (
+                "exr" if attr.node.outputFormat.value == "exr" else "png"),
             group="",
         ),
         desc.File(
@@ -314,6 +327,8 @@ class SDMUniPS(desc.Node):
                     infer_pose,
                     save_normal_16bit, save_color_16bit,
                     save_gray_16bit,
+                    save_normal_exr, save_color_exr,
+                    save_gray_exr,
                 )
                 import sdm_unips.modules.model.model
                 import sdm_unips.modules.model.model_utils
@@ -329,6 +344,8 @@ class SDMUniPS(desc.Node):
                         infer_pose,
                         save_normal_16bit, save_color_16bit,
                         save_gray_16bit,
+                        save_normal_exr, save_color_exr,
+                        save_gray_exr,
                     )
                     import sdm_unips.modules.model.model
                     import sdm_unips.modules.model.model_utils
@@ -381,6 +398,8 @@ class SDMUniPS(desc.Node):
             pixel_samples = chunk.node.pixelSamples.value
             scalable = chunk.node.scalable.value
             mask_output_folder = chunk.node.outputMaskFolder.value
+            output_format = chunk.node.outputFormat.value
+            ext = ".exr" if output_format == "exr" else ".png"
 
             chunk.logger.info("Starting SDM-UniPS inference...")
             chunk.logger.info("  Input SfM: {}".format(input_sfm))
@@ -428,16 +447,22 @@ class SDMUniPS(desc.Node):
                         pose_id, mask_folder if mask_folder else None,
                         view_ids, views=views)
 
-                    # Save extracted mask if needed
+                    # Save extracted mask at output resolution
                     if (mask is not None and mask_output_folder
                             and not mask_folder):
                         os.makedirs(mask_output_folder, exist_ok=True)
                         import cv2
+                        mask_to_save = mask
+                        img_h, img_w = images[0].shape[:2]
+                        if mask.shape[0] != img_h or mask.shape[1] != img_w:
+                            mask_to_save = cv2.resize(
+                                mask, (img_w, img_h),
+                                interpolation=cv2.INTER_NEAREST)
                         mask_path = os.path.join(
                             mask_output_folder,
                             "{}.png".format(pose_id))
                         cv2.imwrite(mask_path,
-                                    np.uint8(mask * 255))
+                                    np.uint8(mask_to_save * 255))
                         chunk.logger.info(
                             "Saved mask to {}".format(mask_path))
 
@@ -458,30 +483,46 @@ class SDMUniPS(desc.Node):
                     if outputs.get("normal") is not None:
                         nml_path = os.path.join(
                             output_folder,
-                            "{}_normals.png".format(pose_id))
-                        save_normal_16bit(
-                            outputs["normal"], nml_path)
+                            "{}_normals{}".format(pose_id, ext))
+                        if output_format == "exr":
+                            save_normal_exr(
+                                outputs["normal"], nml_path)
+                        else:
+                            save_normal_16bit(
+                                outputs["normal"], nml_path)
 
                     if outputs.get("albedo") is not None:
-                        save_color_16bit(
-                            outputs["albedo"],
-                            os.path.join(output_folder,
-                                         "{}_albedo.png".format(
-                                             pose_id)))
+                        albedo_path = os.path.join(
+                            output_folder,
+                            "{}_albedo{}".format(pose_id, ext))
+                        if output_format == "exr":
+                            save_color_exr(
+                                outputs["albedo"], albedo_path)
+                        else:
+                            save_color_16bit(
+                                outputs["albedo"], albedo_path)
 
                     if outputs.get("roughness") is not None:
-                        save_gray_16bit(
-                            outputs["roughness"],
-                            os.path.join(output_folder,
-                                         "{}_roughness.png".format(
-                                             pose_id)))
+                        rough_path = os.path.join(
+                            output_folder,
+                            "{}_roughness{}".format(pose_id, ext))
+                        if output_format == "exr":
+                            save_gray_exr(
+                                outputs["roughness"], rough_path)
+                        else:
+                            save_gray_16bit(
+                                outputs["roughness"], rough_path)
 
                     if outputs.get("metallic") is not None:
-                        save_gray_16bit(
-                            outputs["metallic"],
-                            os.path.join(output_folder,
-                                         "{}_metallic.png".format(
-                                             pose_id)))
+                        metal_path = os.path.join(
+                            output_folder,
+                            "{}_metallic{}".format(pose_id, ext))
+                        if output_format == "exr":
+                            save_gray_exr(
+                                outputs["metallic"], metal_path)
+                        else:
+                            save_gray_16bit(
+                                outputs["metallic"], metal_path)
 
                     results.append({
                         "poseId": pose_id,
@@ -507,21 +548,21 @@ class SDMUniPS(desc.Node):
             if target in ("normal", "normal_and_brdf"):
                 self._create_output_sfm(
                     sfm_data, output_folder,
-                    "normalMaps", "_normals.png", chunk.logger,
-                    downscale=downscale)
+                    "normalMaps", "_normals{}".format(ext),
+                    chunk.logger, downscale=downscale)
 
             if target in ("brdf", "normal_and_brdf"):
                 self._create_output_sfm(
                     sfm_data, output_folder,
-                    "albedoMaps", "_albedo.png", chunk.logger,
-                    downscale=downscale)
-                self._create_output_sfm(
-                    sfm_data, output_folder,
-                    "roughnessMaps", "_roughness.png",
+                    "albedoMaps", "_albedo{}".format(ext),
                     chunk.logger, downscale=downscale)
                 self._create_output_sfm(
                     sfm_data, output_folder,
-                    "metallicMaps", "_metallic.png",
+                    "roughnessMaps", "_roughness{}".format(ext),
+                    chunk.logger, downscale=downscale)
+                self._create_output_sfm(
+                    sfm_data, output_folder,
+                    "metallicMaps", "_metallic{}".format(ext),
                     chunk.logger, downscale=downscale)
 
         finally:
