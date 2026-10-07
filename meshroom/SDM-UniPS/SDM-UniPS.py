@@ -123,7 +123,8 @@ nodes; see the advanced options.
         ),
     ] + psCommon.advancedInputAttributes() + psCommon.settingsAttributes()
 
-    outputs = psCommon.outputAttributes(extraMaps=BRDF_MAPS)
+    outputs = psCommon.outputAttributes(extraMaps=BRDF_MAPS, normalEnabled=lambda node: "normal" in node.target.value,
+                                        extraEnabled=lambda node: "brdf" in node.target.value)
 
     @staticmethod
     def findCheckpoint(node):
@@ -166,11 +167,11 @@ nodes; see the advanced options.
                            pixelSamples=node.pixelSamples.value, scalable=node.scalable.value,
                            outputInterpolation=node.outputInterpolation.value)
             api.checkOptions(**options)
+            withNormals = "normal" in node.target.value
             withBrdf = "brdf" in node.target.value
             checkpoint = self.findCheckpoint(node)
-            # the normal network always runs: the normal maps define the support of every output map
-            model = api.loadModel(checkpoint, useGpu=node.useGpu.value, logger=chunk.logger,
-                                  target="normal_and_brdf" if withBrdf else "normal")
+            # only the networks of the target are loaded; without normals, the pose mask is the support of the maps
+            model = api.loadModel(checkpoint, useGpu=node.useGpu.value, logger=chunk.logger, target=node.target.value)
 
             def predict(images, mask):
                 return api.predict(model, images, mask, **options)
@@ -179,6 +180,7 @@ nodes; see the advanced options.
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
 
-            psCommon.processPoses(chunk, predict, extraMaps=BRDF_MAPS if withBrdf else (), cleanup=cleanup)
+            psCommon.processPoses(chunk, predict, extraMaps=BRDF_MAPS if withBrdf else (), cleanup=cleanup,
+                                  withNormals=withNormals)
         finally:
             chunk.logManager.end()
