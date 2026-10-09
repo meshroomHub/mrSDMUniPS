@@ -24,12 +24,14 @@ source venv/bin/activate
 
 pip install --upgrade pip
 pip install torch torchvision
-pip install -r requirements.txt
+pip install -e .
 
 deactivate
 ```
 
-This installs SDM-UniPS and all its dependencies automatically via pip.
+The plugin's `pyproject.toml` installs SDM-UniPS and its dependencies. Meshroom
+still discovers the node from this repository via `MESHROOM_PLUGINS_PATH`;
+`requirements.txt` is retained for older installation workflows.
 
 ### 3. Download pretrained weights
 
