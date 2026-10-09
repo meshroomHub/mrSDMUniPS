@@ -1,6 +1,6 @@
 # mrSDMUniPS
 
-Meshroom plugin for [SDM-UniPS](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/tree/meshroom) (CVPR2023) -- universal photometric stereo for surface normal and BRDF estimation.
+Meshroom plugin for [SDM-UniPS](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023) (CVPR2023) -- universal photometric stereo for surface normal and BRDF estimation.
 
 ## Quick Start
 
@@ -138,7 +138,7 @@ so the principal point becomes `(pp + 0.5) / d - 0.5` (AliceVision puts the cent
 
 If you prefer to work from a local SDM-UniPS clone instead of pip install:
 
-1. Clone the repo: `git clone -b meshroom https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git`
+1. Clone the repo: `git clone https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git`
 2. Edit `meshroom/config.json`:
    ```json
    [

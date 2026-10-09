@@ -1,2 +1,2 @@
 psutil
-sdm_unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git@meshroom
+sdm_unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git@main
