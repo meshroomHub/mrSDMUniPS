@@ -4,7 +4,6 @@
         "fileVersion": "2.0",
         "nodesVersions": {
             "CameraInit": "12.0",
-            "ConvertSfMFormat": "2.0",
             "ExportImages": "1.0",
             "FeatureExtraction": "1.3",
             "FeatureMatching": "2.0",
@@ -12,8 +11,7 @@
             "ImageMatching": "2.0",
             "ImageSegmentationBox": "0.2",
             "IntrinsicsTransforming": "1.0",
-            "PreparePSImages": "0.1",
-            "SDMUniPS": "0.1",
+            "SDMUniPS": "2.0",
             "SfMFilter": "1.0",
             "SfMMerge": "3.0",
             "SfMTransfer": "2.1",
@@ -2230,17 +2228,6 @@
                 "groupCameraFallback": "global"
             }
         },
-        "ConvertSfMFormat_1": {
-            "nodeType": "ConvertSfMFormat",
-            "position": [
-                1738,
-                88
-            ],
-            "inputs": {
-                "input": "{ExportImages_1.outputSfMData}",
-                "fileExt": "json"
-            }
-        },
         "ExportImages_1": {
             "nodeType": "ExportImages",
             "position": [
@@ -2330,29 +2317,15 @@
                 "input": "{SfMTransfer_1.output}"
             }
         },
-        "PreparePSImages_1": {
-            "nodeType": "PreparePSImages",
-            "position": [
-                1802,
-                203
-            ],
-            "inputs": {
-                "inputPath": "{ExportImages_1.outputSfMData}",
-                "enableLandscapeRotation": false,
-                "enableCropping": true
-            }
-        },
         "SDMUniPS_1": {
             "nodeType": "SDMUniPS",
             "position": [
-                2015,
-                142
+                1802,
+                157
             ],
             "inputs": {
-                "inputSfmData": "{PreparePSImages_1.outputSfmData}",
-                "inputDataFolder": "{PreparePSImages_1.outputDataFolder}",
-                "maxImageNum": 15,
-                "viewExt": "{PreparePSImages_1.dataFolderSuffix}"
+                "inputSfm": "{ExportImages_1.outputSfMData}",
+                "nbImages": 15
             }
         },
         "SfMFilter_1": {
