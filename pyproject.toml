@@ -8,6 +8,8 @@ version = "2.0.0"
 description = "Meshroom plugin for SDM-UniPS universal photometric stereo"
 readme = "README.md"
 requires-python = ">=3.10"
+license = {text = "MPL-2.0"}
+authors = [{name = "Baptiste Brument"}]
 dependencies = [
     "psutil",
     "sdm-unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git@meshroom",

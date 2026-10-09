@@ -1,4 +1,6 @@
 __version__ = "2.0"
+__author__ = "Baptiste Brument"
+__license__ = "MPL-2.0"
 
 import os
 
@@ -11,6 +13,14 @@ BRDF_MAPS = ("albedo", "roughness", "metallic")
 
 class SDMUniPS(desc.Node):
     """Multi-view photometric stereo normal (and BRDF) estimation with SDM-UniPS."""
+
+    # Credits of the wrapped method (shown in the node info, with the plugin author and license)
+    __nodeInfo__ = [
+        ("method", "SDM-UniPS: Scalable, Detailed, and Mask-Free Universal Photometric Stereo "
+                   "(S. Ikehata, CVPR 2023)"),
+        ("methodLicense", "MIT with a non-commercial clause"),
+        ("methodRepository", "https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023"),
+    ]
 
     category = "Photometric Stereo"
     gpu = desc.Level.INTENSIVE
