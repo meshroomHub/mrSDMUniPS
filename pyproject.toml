@@ -21,7 +21,7 @@ package = false
 [tool.uv.sources]
 torch = { index = "pytorch-cu121" }
 torchvision = { index = "pytorch-cu121" }
-sdm-unips = { git = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git", branch = "main" }
+sdm-unips = { git = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git", tag = "weights-v1" }
 
 [[tool.uv.index]]
 name = "pytorch-cu121"
