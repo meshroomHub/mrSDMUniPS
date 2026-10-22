@@ -35,16 +35,18 @@ requirements = "Nvidia GPU with CUDA >= 12.X."
 # If you prefer to work from a local SDM-UniPS
 # env = [ { key = "SDM_UNIPS_PATH", type = "path", value = "/path/to/SDM-UniPS-CVPR2023" }, { key = "SDM_UNIPS_CHECKPOINT_PATH", type = "path", value = "/path/to/SDM-UniPS-CVPR2023/checkpoint" } ]
 
-# [[tool.meshroom.assets]]
-# name = "SDM-UniPS_normal_pretrained_checkpoint"
-# category = "Weights"
-# path = "checkpoint/normal/nml.pytmodel"
-# url = "https://example.com/path/to/nml.pytmodel"
-# sha256 = ""
+[[tool.meshroom.assets]]
+name = "SDM-UniPS_normal_pretrained_checkpoint"
+category = "Weights"
+path = "checkpoint/normal/nml.pytmodel"
+url = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/releases/download/weights-v1/nml.pytmodel"
+sha256 = "100747de145238f40c1ff1e1263ce2bd3d7d7b12d15214a6acba1134ed937bff"
+sizeMB = 251
 
-# [[tool.meshroom.assets]]
-# name = "SDM-UniPS_BRDF_pretrained_checkpoint"
-# category = "Weights"
-# path = "checkpoint/brdf/brdf.pytmodel"
-# url = "https://example.com/path/to/brdf.pytmodel"
-# sha256 = ""
+[[tool.meshroom.assets]]
+name = "SDM-UniPS_BRDF_pretrained_checkpoint"
+category = "Weights"
+path = "checkpoint/brdf/brdf.pytmodel"
+url = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/releases/download/weights-v1/brdf.pytmodel"
+sha256 = "9322b017cac0a2de81f009a206d5d94e609cae2997abdd1dc2dac912e4eaf910"
+sizeMB = 252
