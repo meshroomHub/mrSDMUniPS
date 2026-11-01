@@ -35,11 +35,20 @@ still discovers the node from this repository via `MESHROOM_PLUGINS_PATH`;
 
 ### 3. Download pretrained weights
 
+When the plugin is installed by Meshroom, the installer downloads the pretrained checkpoints (~503 MB) declared in
+`[[tool.meshroom.assets]]` of `pyproject.toml` and checks their sha256. For a manual install:
+
 ```bash
-bash download_weights.sh
+URL=https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/releases/download/weights-v1
+mkdir -p checkpoint/normal checkpoint/brdf
+curl -L -o checkpoint/normal/nml.pytmodel $URL/nml.pytmodel
+curl -L -o checkpoint/brdf/brdf.pytmodel $URL/brdf.pytmodel
+echo "100747de145238f40c1ff1e1263ce2bd3d7d7b12d15214a6acba1134ed937bff  checkpoint/normal/nml.pytmodel" | sha256sum -c
+echo "9322b017cac0a2de81f009a206d5d94e609cae2997abdd1dc2dac912e4eaf910  checkpoint/brdf/brdf.pytmodel" | sha256sum -c
 ```
 
-This downloads the pretrained checkpoints (~480 MB) from Dropbox into `checkpoint/`:
+These are the files of the `checkpoint.zip` linked from the
+[SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023) README, mirrored one by one:
 
 ```
 checkpoint/

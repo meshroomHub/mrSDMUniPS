@@ -149,7 +149,7 @@ nodes; see the advanced options.
         for path in candidates:
             if os.path.isdir(path):
                 return os.path.abspath(path)
-        raise RuntimeError("SDM-UniPS checkpoint not found, set 'Model' or download it (download_weights.sh). "
+        raise RuntimeError("SDM-UniPS checkpoint not found, set 'Model' or download it (see README). "
                            "Searched: {}".format(", ".join(candidates)))
 
     @staticmethod

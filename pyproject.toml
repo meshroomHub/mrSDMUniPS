@@ -1,21 +1,52 @@
-[build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
-
 [project]
-name = "mr-sdm-unips"
+name = "mrSDMUniPS"
 version = "2.0.0"
-description = "Meshroom plugin for SDM-UniPS universal photometric stereo"
+description = "Meshroom plugin for SDM-UniPS universal photometric stereo."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MPL-2.0"}
 authors = [{name = "Baptiste Brument"}]
 dependencies = [
+    "torch",
+    "torchvision",
     "psutil",
-    "sdm-unips @ git+https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git@main",
+    "sdm-unips",
 ]
 
 # Meshroom discovers the node from MESHROOM_PLUGINS_PATH, not site-packages.
-# This distribution installs the plugin's dependencies into its venv.
-[tool.setuptools]
-packages = []
+# uv only installs the plugin's dependencies into its venv.
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu121" }
+torchvision = { index = "pytorch-cu121" }
+sdm-unips = { git = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023.git", tag = "weights-v1" }
+
+[[tool.uv.index]]
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
+explicit = true
+
+[tool.meshroom]
+publisher = "meshroomHub"
+requirements = "Nvidia GPU with CUDA >= 12.X."
+
+# If you prefer to work from a local SDM-UniPS
+# env = [ { key = "SDM_UNIPS_PATH", type = "path", value = "/path/to/SDM-UniPS-CVPR2023" }, { key = "SDM_UNIPS_CHECKPOINT_PATH", type = "path", value = "/path/to/SDM-UniPS-CVPR2023/checkpoint" } ]
+
+[[tool.meshroom.assets]]
+name = "SDM-UniPS_normal_pretrained_checkpoint"
+category = "Weights"
+path = "checkpoint/normal/nml.pytmodel"
+url = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/releases/download/weights-v1/nml.pytmodel"
+sha256 = "100747de145238f40c1ff1e1263ce2bd3d7d7b12d15214a6acba1134ed937bff"
+sizeMB = 251
+
+[[tool.meshroom.assets]]
+name = "SDM-UniPS_BRDF_pretrained_checkpoint"
+category = "Weights"
+path = "checkpoint/brdf/brdf.pytmodel"
+url = "https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023/releases/download/weights-v1/brdf.pytmodel"
+sha256 = "9322b017cac0a2de81f009a206d5d94e609cae2997abdd1dc2dac912e4eaf910"
+sizeMB = 252
