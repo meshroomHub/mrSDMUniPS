@@ -1,30 +1,23 @@
-<div align="center">
-
 # mrSDMUniPS
 
-### Meshroom Plugin for SDM-UniPS
+Meshroom plugin for [SDM-UniPS](https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023): scalable, detailed and
+mask-free universal photometric stereo (S. Ikehata, CVPR 2023).
 
-<p>
-Integrate <a href="https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023">SDM-UniPS</a> photometric stereo normal and BRDF estimation directly into your <a href="https://github.com/alicevision/Meshroom">Meshroom</a> photogrammetry pipeline.
-</p>
+SDM-UniPS estimates per-pixel surface normals and BRDF maps from multi-lighting images, without known light directions.
+The node is harmonized with the other photometric stereo plugins (mrLINOUniPS, mrUniMSPS, mrLedGetter, through the shared
+`psCommon.py` layer), and its outputs are ready for RNb-NeuS2:
 
-<a href="https://github.com/meshroomHubWarehouse/SDM-UniPS-CVPR2023"><img src="https://img.shields.io/badge/Core-SDM--UniPS-green" alt="SDM-UniPS" height="25"></a>
-
-</div>
-
----
-
-## What is SDM-UniPS?
-
-**SDM-UniPS** (CVPR 2023) is a universal photometric stereo method: it estimates per-pixel surface normals and BRDF maps
-from multi-lighting images without requiring known light directions.
+| Node | Step | Output |
+|------|------|--------|
+| `SDMUniPS` | Normals and BRDF maps per pose | normal maps, masks, albedo, roughness and metallic maps, `normalMaps.sfm`, `albedoMaps.sfm` |
 
 ---
 
 ## Requirements
 
-- **[Meshroom](https://github.com/alicevision/Meshroom)** 2026.1 or later (develop branch until its release):
-  Meshroom 2025.1.x has neither the plugin manager nor the `[tool.meshroom]` settings of `pyproject.toml`
+- **[Meshroom](https://github.com/alicevision/Meshroom)** 2026.1 or later (develop branch until its release, tested on
+  commit [`edc4b6a2`](https://github.com/alicevision/Meshroom/commit/edc4b6a2)): Meshroom 2025.1.x has neither the plugin
+  manager nor the `[tool.meshroom]` settings of `pyproject.toml`
 - **NVIDIA GPU** with a driver supporting CUDA 12.1
 - **Python** 3.10 or newer
 
@@ -36,7 +29,7 @@ All Python dependencies are declared in [`pyproject.toml`](pyproject.toml): PyTo
 
 ## Installation
 
-### With the plugin manager
+### 1. Install the plugin
 
 From Meshroom's plugin manager (*Manage Plugins*), or from the command line:
 
@@ -44,10 +37,10 @@ From Meshroom's plugin manager (*Manage Plugins*), or from the command line:
 meshroom_plugins install mrSDMUniPS
 ```
 
-The installer creates the plugin `venv/` with `uv sync` and downloads the pretrained checkpoints (~503 MB), declared as assets in
-`pyproject.toml`, checking their SHA-256. The **SDMUniPS** node then appears under the **Photometric Stereo** category.
+The installer creates the plugin `venv/` with `uv sync` and downloads the pretrained checkpoints (~503 MB), declared as assets in `pyproject.toml`, checking their SHA-256.
+The `SDMUniPS` node then appears in the *Photometric Stereo* category.
 
-### Manual install (without the plugin manager)
+### 2. Manual install (without the plugin manager)
 
 Requires [uv](https://docs.astral.sh/uv/).
 
@@ -71,20 +64,7 @@ On Windows (PowerShell): `$env:UV_PROJECT_ENVIRONMENT = "venv"; uv sync`, then
 `$env:MESHROOM_PLUGINS_PATH = "C:\path\to\plugins\mrSDMUniPS"`.
 
 These are the files of the `checkpoint.zip` linked from the
-[SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023) README, mirrored one by one; the plugin finds them in
-`checkpoint/`.
-
-### Working on a local SDM-UniPS clone
-
-The node imports SDM-UniPS from the plugin `venv/`. To run a local clone instead, install it in editable mode in that venv:
-
-```bash
-uv pip install --python venv/bin/python -e /path/to/SDM-UniPS-CVPR2023
-```
-
-Updating or reinstalling the plugin from the plugin manager recreates `venv/`: run this command again afterwards.
-`SDM_UNIPS_PATH` (an environment variable, or the `sdmUniPsPath` input of the node) is only a fallback: the node uses it when
-SDM-UniPS is not installed in the venv. Checkpoints elsewhere: `modelPath` input, or `SDM_UNIPS_CHECKPOINT_PATH`.
+[SDM-UniPS](https://github.com/satoshi-ikehata/SDM-UniPS-CVPR2023) README, mirrored one by one.
 
 ---
 
@@ -93,8 +73,8 @@ SDM-UniPS is not installed in the venv. Checkpoints elsewhere: `modelPath` input
 `meshroom/sdmUniPs.mgt` (*File > New Pipeline > Sdm Uni Ps*) runs the structure-from-motion of AliceVision, segments the
 object with SAM 3, exports the undistorted images and estimates the normals and the BRDF maps with `SDMUniPS`.
 
-It needs [mrSegmentation](https://github.com/meshroomHub/mrSegmentation) (node `ImageSegmentationSam3`), not in the
-plugin registry yet: install it by hand.
+It needs [mrSegmentation](https://github.com/meshroomHub/mrSegmentation) (node `ImageSegmentationSam3`), not in the plugin
+registry yet: install it by hand.
 
 Images: one folder per pose, holding the single-light images and one reference image lit by all the lights, whose
 filename contains `ambient` (CameraInit makes it the pose reference) and `all_leds` (`SfMFilter_1` keeps these images
@@ -103,20 +83,18 @@ to your object.
 
 ---
 
-## Usage
+## Nodes
 
-### Input
+### `SDMUniPS`
 
 - **SfMData** whose views sharing a poseId are the lighting images of a pose (as created by CameraInit for multi-lighting folders), e.g. the undistorted images of ExportImages. Poses with fewer than `minViewsPerPose` views (photogrammetry images) are ignored, so a mixed multi-view / multi-light SfMData can be used as is.
 - **Masks** (optional): a folder of `<poseId>.png` (one mask per pose) or `<viewId>.png` (one mask per image, combined by vote); without mask files, the masks are extracted from the alpha channel of the images.
-
-## Node Parameters
 
 The data handling (SfMData, image selection, masks, outputs) is implemented in `psCommon.py`, a common layer shared
 as an identical copy by the LINOUniPS, UniMSPS and SDMUniPS nodes: the three nodes have the same inputs, outputs and
 behaviour, only the network differs.
 
-### Inputs
+#### Inputs
 
 | Parameter | Label | Default | Description |
 |-----------|-------|---------|-------------|
@@ -163,7 +141,7 @@ inputs, the scalable mode by default, the whole image processed when there is no
 square) and the maps multiplied by the pose mask. The network outputs normals in the OpenGL camera frame (checked on
 real data). The pixel sampling is seeded per pose (`seed`).
 
-### Outputs
+#### Outputs
 
 | Parameter | Description |
 |-----------|-------------|
@@ -178,7 +156,11 @@ maximum, so its scale is not comparable between poses.
 Downscaling keeps the camera model exact: the downscaled pixel `i` averages the input pixels `[i * d, (i + 1) * d)`,
 so the principal point becomes `(pp + 0.5) / d - 0.5` (AliceVision puts the center of pixel `i` at `i`).
 
-## Tests
+---
+
+## Development
+
+### Tests
 
 ```bash
 # unit tests (CPU), from the plugin root
@@ -187,9 +169,20 @@ PYTHONPATH=/path/to/Meshroom venv/bin/python -m pytest tests
 PYTHONPATH=/path/to/Meshroom venv/bin/python tests/check_real_pose.py <sfm> <poseId> <outputFolder> --downscale 2
 ```
 
----
+### Working on a local SDM-UniPS clone
 
-## Plugin Structure
+The node imports SDM-UniPS from the plugin `venv/`. To run a local clone instead, install it in editable mode in that venv:
+
+```bash
+uv pip install --python venv/bin/python -e /path/to/SDM-UniPS-CVPR2023
+```
+
+Updating or reinstalling the plugin from the plugin manager recreates `venv/`: run this command again afterwards.
+
+`SDM_UNIPS_PATH` (an environment variable, or the `sdmUniPsPath` input of the node) is only a fallback: the node uses it
+when SDM-UniPS is not installed in the venv. Checkpoints elsewhere: `modelPath` input, or `SDM_UNIPS_CHECKPOINT_PATH`.
+
+### Plugin structure
 
 ```
 mrSDMUniPS/
@@ -236,9 +229,11 @@ This work is supported by [**DOPAMIn**](https://www.cnrsinnovation.com/actualite
 
 ---
 
-## References
+## Citation
 
-Ikehata, S. "Scalable, Detailed and Mask-free Universal Photometric Stereo." CVPR 2023.
+- **Scalable, Detailed and Mask-free Universal Photometric Stereo**  
+  S. Ikehata (2023)  
+  In *IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)*.
 
 ---
 
